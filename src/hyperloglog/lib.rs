@@ -16,6 +16,7 @@ use std::iter::repeat;
 use std::marker::PhantomData;
 
 #[cfg_attr(feature = "with_serde", derive(serde::Serialize, serde::Deserialize))]
+#[derive(Clone, Debug)]
 pub struct HyperLogLog<V> {
     alpha: f64,
     p: u8,
@@ -25,7 +26,17 @@ pub struct HyperLogLog<V> {
     key1: u64,
     #[cfg_attr(feature = "with_serde", serde(skip))]
     sip: SipHasher13,
+    #[cfg_attr(feature = "with_serde", serde(skip))]
     v_phantom: PhantomData<V>,
+}
+
+impl<V> Default for HyperLogLog<V>
+where
+    V: Hash,
+{
+    fn default() -> Self {
+        Self::new(0.05)
+    }
 }
 
 impl<V> HyperLogLog<V>

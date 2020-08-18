@@ -31,9 +31,9 @@ You can save the intermediate HLL object if you enable the `with_serde` feature:
 hyperloglog = { version = "0", features = "with_serde" }
 ```
 
-Then you can serialize/deserialize the HyperLogLog struct:
+Then you can serialize/deserialize the HyperLogLog struct with Serde's capabilities:
 
 ```rust
-let hll_ser: String = hll.serialize();
-let hll_de: HyperLogLog::<String>::deserialize(&hll_ser);
+let hll_ser: String = serde_json::to_string(&hll).unwrap();
+let hll_de: HyperLogLog::<String> = serde_json::from_str(&hll_ser).unwrap();
 ```
