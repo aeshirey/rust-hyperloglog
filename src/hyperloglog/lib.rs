@@ -7,8 +7,6 @@
 #![allow(clippy::unreadable_literal)]
 
 mod data;
-use rand;
-
 use siphasher::sip::SipHasher13;
 use std::cmp::Ordering::{Equal, Greater, Less};
 use std::hash::{Hash, Hasher};
@@ -24,8 +22,6 @@ pub struct HyperLogLog<V> {
     M: Vec<u8>,
     key0: u64,
     key1: u64,
-    #[cfg_attr(feature = "with_serde", serde(skip))]
-    sip: SipHasher13,
     #[cfg_attr(feature = "with_serde", serde(skip))]
     v_phantom: PhantomData<V>,
 }
@@ -64,9 +60,17 @@ where
             M: repeat(0u8).take(m).collect(),
             key0,
             key1,
-            sip: SipHasher13::new_with_keys(key0, key1),
             v_phantom: PhantomData,
         }
+    }
+
+    fn hash<V2>(&self, value: &V2) -> u64
+    where
+        V2: Hash,
+    {
+        let mut sip = SipHasher13::new_with_keys(self.key0, self.key1);
+        value.hash(&mut sip);
+        sip.finish()
     }
 
     pub fn new_from_template(hll: &HyperLogLog<V>) -> Self {
@@ -77,15 +81,12 @@ where
             key0: hll.key0,
             key1: hll.key1,
             M: repeat(0u8).take(hll.m).collect(),
-            sip: hll.sip,
             v_phantom: PhantomData,
         }
     }
 
     pub fn insert(&mut self, value: &V) {
-        let sip = &mut self.sip.clone();
-        value.hash(sip);
-        let x = sip.finish();
+        let x = self.hash(value);
         let j = x as usize & (self.m - 1);
         let w = x >> self.p;
         let rho = Self::get_rho(w, 64 - self.p);
@@ -116,11 +117,7 @@ where
     pub fn merge(&mut self, src: &HyperLogLog<V>) {
         assert!(src.p == self.p);
         assert!(src.m == self.m);
-        let sip1 = &mut src.sip.clone();
-        let sip2 = &mut self.sip.clone();
-        42.hash(sip1);
-        42.hash(sip2);
-        assert!(sip1.finish() == sip2.finish());
+
         for i in 0..self.m {
             let (src_mir, mir) = (src.M[i], &mut self.M[i]);
             if src_mir > *mir {
@@ -198,8 +195,9 @@ where
         });
         r.truncate(6);
         r.iter()
-            .map(|&ez| match ez {
-                (_, b) => b,
+            .map(|&ez| {
+                let (_, b) = ez;
+                b
             })
             .collect()
     }
